@@ -12,8 +12,19 @@ import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.GridLayout;
+import android.widget.LinearLayout;
+import android.widget.Toast;
+
+import com.hht.topview.entity.GridItemEntity;
+import com.hht.topview.ui.view.RecyclerViewGridAdapter;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import androidx.annotation.Nullable;
+import androidx.recyclerview.widget.GridLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 public class TopViewService extends Service implements View.OnTouchListener {
     private final static String TAG = TopViewService.class.getSimpleName();
@@ -28,12 +39,16 @@ public class TopViewService extends Service implements View.OnTouchListener {
     private View rightView;
     private View topView;
     private View bottomView;
-    private boolean isAddView;
+    private LinearLayout quickView;
+    private RecyclerView quickList;
+    private boolean isShowFloatView;
+    private boolean isShowQuickView;
+    private int fromDirection;
     private float posX;
     private float posY;
     private float curPosX;
     private float curPosY;
-
+    private List<GridItemEntity> data= new ArrayList<GridItemEntity>();
     @Nullable
     @Override
     public IBinder onBind(Intent intent) {
@@ -46,6 +61,8 @@ public class TopViewService extends Service implements View.OnTouchListener {
         windowManager = (WindowManager) this.getSystemService(Context.WINDOW_SERVICE);
         initFloatView();
         addFloatView();
+
+
     }
 
     @Override
@@ -62,6 +79,8 @@ public class TopViewService extends Service implements View.OnTouchListener {
         rightView = LayoutInflater.from(this).inflate(R.layout.layout_float_view,null);
         topView = LayoutInflater.from(this).inflate(R.layout.layout_float_view,null);
         bottomView = LayoutInflater.from(this).inflate(R.layout.layout_float_view,null);
+        quickView = (LinearLayout) LayoutInflater.from(this).inflate(R.layout.layout_quick_view,null);
+        quickList =  quickView.findViewById(R.id.rcl_quick_list);
         leftView.setTag(TAG_LEFT);
         topView.setTag(TAG_TOP);
         rightView.setTag(TAG_RIGHT);
@@ -70,6 +89,25 @@ public class TopViewService extends Service implements View.OnTouchListener {
         rightView.setOnTouchListener(this);
         topView.setOnTouchListener(this);
         bottomView.setOnTouchListener(this);
+        quickView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                removeQuickView(fromDirection);
+                Log.e("=======","removeQuickView");
+            }
+        });
+
+        for(int i=0; i<12; i++) {
+            GridItemEntity entity = new GridItemEntity();
+            entity.setTitle("应用"+i);
+            data.add(entity);
+        }
+        RecyclerViewGridAdapter adapter = new RecyclerViewGridAdapter(this,data);
+        quickList.setAdapter(adapter);
+        GridLayoutManager gridLayoutManager = new GridLayoutManager(this, 2);
+        gridLayoutManager.setOrientation(RecyclerView.VERTICAL);
+        quickList.setLayoutManager(gridLayoutManager);
+
 
     }
 
@@ -119,18 +157,46 @@ public class TopViewService extends Service implements View.OnTouchListener {
     }
 
 
+    private WindowManager.LayoutParams initQuickViewParams(int direction){
+        DisplayMetrics dm = TopViewService.this.getResources().getDisplayMetrics();
+        int screenWidth =  dm.widthPixels;
+        int screenHeight = dm.heightPixels;
+        // 1- Left 2-Right 3-Top 4-Bottom
+        WindowManager.LayoutParams params = new WindowManager.LayoutParams();
+        params.type = WindowManager.LayoutParams.TYPE_SYSTEM_ALERT;
+        int flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON;
+        params.flags = flags;
+        params.format = PixelFormat.TRANSLUCENT;
+        if (direction ==1){
+            params.x = 0;
+            params.y = 0;
+            params.width = screenWidth;
+            params.height = WindowManager.LayoutParams.MATCH_PARENT;
+            params.gravity = Gravity.LEFT;
+        }else if (direction == 2){
+            params.x = 0;
+            params.y = 0;
+            params.width = screenWidth;
+            params.height = WindowManager.LayoutParams.MATCH_PARENT;
+            params.gravity = Gravity.LEFT;
+        }
+
+        return params;
+    }
+
     /**
      * 添加浮动窗口
      */
     private void addFloatView(){
-        if (isAddView){
+        if (isShowFloatView){
             return;
         }
         windowManager.addView(leftView, initFloatWindowParams(1));
         windowManager.addView(rightView, initFloatWindowParams(2));
         windowManager.addView(topView,initFloatWindowParams(3));
         windowManager.addView(bottomView,initFloatWindowParams(4));
-        isAddView= true;
+        isShowFloatView = true;
     }
 
 
@@ -138,14 +204,14 @@ public class TopViewService extends Service implements View.OnTouchListener {
      * 移除浮动窗口
      */
     private void removeFloatView(){
-        if (!isAddView) {
+        if (!isShowFloatView) {
             return;
         }
         windowManager.removeViewImmediate(leftView);
         windowManager.removeViewImmediate(rightView);
         windowManager.removeViewImmediate(topView);
         windowManager.removeViewImmediate(bottomView);
-        isAddView= false;
+        isShowFloatView = false;
     }
 
     @Override
@@ -175,18 +241,55 @@ public class TopViewService extends Service implements View.OnTouchListener {
             case MotionEvent.ACTION_UP:
                 if ((curPosX - posX > 0) && (Math.abs(curPosX - posX) > 25) && view.getTag().equals(TAG_LEFT)){
                     Log.v(TAG,"向右滑动");
+                    Toast.makeText(TopViewService.this,"触发滑动了",Toast.LENGTH_SHORT).show();
+                    addQuickView(1);
                 }
                 else if ((curPosX - posX < 0) && (Math.abs(curPosX-posX) > 25) && view.getTag().equals(TAG_RIGHT)){
                     Log.v(TAG,"向左滑动");
+                    Toast.makeText(TopViewService.this,"触发滑动了",Toast.LENGTH_SHORT).show();
+                    addQuickView(2);
                 }
                 if ((curPosY - posY > 0) && (Math.abs(curPosY - posY) > 25) && view.getTag().equals(TAG_TOP)){
                     Log.v(TAG,"向下滑动");
+                    Toast.makeText(TopViewService.this,"触发滑动了",Toast.LENGTH_SHORT).show();
                 }
                 else if ((curPosY - posY < 0) && (Math.abs(curPosY-posY) > 25) && view.getTag().equals(TAG_BOTTOM)){
                     Log.v(TAG,"向上滑动");
+                    Toast.makeText(TopViewService.this,"触发滑动了",Toast.LENGTH_SHORT).show();
                 }
                 break;
         }
-        return false;
+        return true;
+    }
+
+
+    private void addQuickView(int direction){
+        if(isShowQuickView) {
+            return;
+        }
+        if (direction == 1) {
+            windowManager.removeViewImmediate(leftView);
+            quickView.setGravity(Gravity.LEFT);
+        }else if (direction ==2) {
+            windowManager.removeViewImmediate(rightView);
+            quickView.setGravity(Gravity.RIGHT);
+        }
+        windowManager.addView(quickView,initQuickViewParams(direction));
+        isShowQuickView = true;
+        fromDirection = direction;
+    }
+
+    private void removeQuickView(int direction){
+        if(!isShowQuickView) {
+            return;
+        }
+        windowManager.removeViewImmediate(quickView);
+
+        if (direction == 1) {
+            windowManager.addView(leftView,initFloatWindowParams(direction));
+        } else if (direction == 2) {
+            windowManager.addView(rightView,initFloatWindowParams(direction));
+        }
+        isShowQuickView = false;
     }
 }
